@@ -7,8 +7,8 @@ Dominion Game
 -->
 </head>
 <body>
-<script src="../3p/jquery.js"></script>
-<script src="../cmn/mix.js"></script>
+<script src="deps/jquery.js"></script>
+<script src="deps/mix.js"></script>
 <script>
     
     $.fn.render_card = function(card,other_text) {
@@ -156,7 +156,7 @@ Dominion Game
             // re-draw the supply.
             supply.$.empty();
             supply.render();            
-            p.refresh_stats();
+            this.refresh_stats();
         },
  
         do_turn: function(){
