@@ -1,0 +1,370 @@
+<html>
+<head></head>
+<body>
+<script src="../3p/jquery.js"></script>
+<script src="../cmn/mix.js"></script>
+<script>
+    
+    $.fn.render_card = function(card,other_text) {
+        return $(this).each(function(){
+            $(this).append(
+                $('<div class="card '+card.type+'"><div class="title">'+card.name
+                    +'</div><div class="rules">'+card.rule
+                    +'</div><div class="cost">$'+card.cost
+                    +'</div><div class="other">'+(other_text||'')
+                    +'</div></div>'
+                ).data('card',card)
+            );
+        });
+    };
+    
+    function shuffle(arr) {
+        tmp = [], out = [], tmpi = {};
+        for (var i = 0; i < arr.length; i++) {
+            tmp[i] = Math.random();
+            tmpi[tmp[i]] = i;
+        }
+        tmp.sort();
+        for (var i = 0; i < arr.length; i++) {
+            out.push(arr[tmpi[tmp[i]]]);
+        }
+        return out;
+    }
+    
+    var base_cards = [
+        {
+            name: 'Copper',
+            rule: '+1 dollars',
+            type: 'treasure',
+            cost: 0
+        }, {
+            name: 'Silver',
+            rule: '+2 dollars',
+            type: 'treasure',
+            cost: 3
+        }, {
+            name: 'Gold',
+            rule: '+3 dollars',
+            type: 'treasure',
+            cost: 6
+        }, {
+            name: 'Estate',
+            rule: '+1 vp',
+            type: 'victory',
+            cost: 2
+        }, {
+            name: 'Duchy',
+            rule: '+3 vp',
+            type: 'victory',
+            cost: 5
+        }, {
+            name: 'Province',
+            rule: '+6 vp',
+            type: 'victory',
+            cost: 8
+        }
+    
+    ];
+    
+    var cards = base_cards.concat([
+        {
+            name: 'Village',
+            rule: '+2 actions\n+1 cards',
+            type: 'action',
+            cost: 3
+        },
+        {
+            name: 'Factory',
+            rule: '+3 cards',
+            type: 'action',
+            cost: 4
+        },
+        {
+            name: 'Laboratory',
+            rule: '+1 actions\n+2 cards',
+            type: 'action',
+            cost: 5
+        },
+        {
+            name: 'Witch',
+            rule: 'opponent gains a curse\n+2 cards',
+            type: 'action',
+            cost: 4
+        },
+        {
+            name: 'Fishing Village',
+            rule: '+1 money\n+2 actions\nnext turn:+1 money\n+1 action',
+            type: 'action',
+            cost: 3
+        }
+    ]);
+    cards.forEach(function(card){window[card.name]=card});
+    
+    // player class
+    var Player = {
+        
+        state: 'START', // turn state.
+        
+        init: function(){
+            // set up player's deck.
+            this.deck = [];
+            this.hand = [];
+            this.discard = [];
+            for (var i = 0; i < 3; i++)
+                this.deck.push(Estate);
+            for (var i = 0; i < 7; i++)
+                this.deck.push(Copper);
+            this.deck = shuffle(this.deck);
+        },
+        
+        draw_hand: function() {
+            $('#hand').empty()
+            this.hand.forEach(function(card){
+                $('#hand').render_card(card);
+            });
+        },
+        
+        draw: function(n){
+            var new_cards = this.deck.slice(0,n);
+            new_cards.forEach(function(c){
+                $('#hand').render_card(c);
+            });
+            this.hand = this.hand.concat(new_cards);
+            this.deck = this.deck.slice(n,this.deck.length);
+            this.refresh_stats();
+        },
+        
+        refresh_stats: function() {
+            $('#stats').text(
+                 "draw: "+this.deck.length
+                +" discard:"+this.discard.length
+                +" cash:"+this.cash
+                +" buys:"+this.buys
+                +" actions:"+this.actions
+            );
+        },
+        
+        gain_card: function(c){
+            this.discard.push(c);
+            supply.get_pile(c).amount--;
+            // re-draw the supply.
+            supply.$.empty();
+            supply.render();            
+            p.refresh_stats();
+        },
+ 
+        do_turn: function(){
+            this.buys = 1;
+            this.actions = 1;
+            this.cash = 0;
+            if (this.deck.length >= 5) {
+                this.draw(5);
+            } else {
+                this.hand = this.deck;
+                this.deck = shuffle(this.discard);
+                this.discard = [];
+                var n = 5 - this.hand.length;
+                this.draw(n);
+            }
+            this.draw_hand();
+            $('#msg').text(this.name+"'s turn.");
+            this.update_state('START');
+        },
+        end_turn: function() {
+           this.discard = this.discard.concat(this.hand);
+           this.hand = [];
+           this.refresh_stats();
+        },
+        
+        update_state: function(state) {
+            this.state = state;
+        }
+    
+    };
+    
+    var cur_player = 0, players, supply, controls;
+    
+    $(function(){
+        
+        supply = {
+            
+            $:$('#supply'),
+            
+            piles: cards.map(function(card){
+                return {
+                    amount: 10,
+                    card: card
+                }
+            }),
+            
+            render: function(){
+                supply.piles.forEach(function(pile){
+                    supply.$.render_card(pile.card,pile.amount);
+                });
+            },
+            
+            get_pile: function(card) {
+                var the_pile;
+                supply.piles.forEach(function(pile){
+                    if (card.name == pile.card.name) {
+                        the_pile = pile;
+                    }
+                });
+                return the_pile;
+            }
+        };
+        
+        $('#supply .card').live('click', function(){
+            var c=$(this).data('card');
+            var p=players[cur_player];
+            if (p.buys > 0) {
+                if (p.cash >= c.cost) {
+                    var pile = supply.get_pile(c);
+                    if (pile.amount > 0) {
+                        p.cash = p.cash - c.cost;
+                        p.buys --;
+                        p.gain_card(c); 
+                    } else {
+                        alert("There are no "+c.name+" left in the supply.");
+                    }
+                } else {
+                    alert("You don't have enough cash.");
+                }
+            } else {
+                alert("You have no buys left!");
+            }
+            p.update_state('BUYING');
+        });
+        
+        function resolveCard(p,c){
+            L = c.rule.split("\n");
+            L.forEach(function(l){
+                console.log(l);
+                var m = l.match(/([\+\-]\d+)\s(\w+)/);
+                if (m) {
+                    var amt = parseInt(m[1]);
+                    var res = m[2];
+                    if (res === 'dollars') {
+                        p.cash += amt;
+                    }
+                    if (res === 'vp') {
+                        p.vp += amt;
+                    }
+                    if (res === 'actions') {
+                        p.actions += amt;
+                    }
+                    if (res === 'buys') {
+                        p.buys += amt;
+                    }
+                    if (res === 'cards') {
+                        p.draw(3);
+                    }
+                } else {
+                    conosle.log('rule is complex');
+                }
+            });
+        }
+        
+        // play card from hand.
+        $('#hand .card').live('click', function(){
+            var c=$(this).data('card');
+            var p=players[cur_player];
+            if ($(this).hasClass('used')) return;
+            if (c.type === 'treasure') {
+                resolveCard(p,c);
+                $(this).addClass('used');
+                p.update_state('BUYING');
+            }
+            if (c.type === 'action') {
+                if (p.state !== 'BUYING') {
+                    if (p.actions > 0) {
+                        resolveCard(p,c);
+                        $(this).addClass('used');
+                        p.actions--;
+                    } else {
+                        alert("No actions left!");
+                    }
+                } else {
+                    alert('No actions allowed in the buy phase!');
+                }
+            }
+            p.refresh_stats();
+        });
+        
+        controls = {
+            $:$('#controls'),
+            items: [
+                {
+                    name:'done',
+                    click:function(){
+                        players[cur_player].end_turn();
+                        cur_player = (cur_player + 1) % players.length;
+                        players[cur_player].do_turn();
+                    }
+                }
+            
+            ],
+            render: function(){
+                this.items.forEach(function(item){
+                    $("<button id='"+item.name+"'>"+item.name+"</button>").click(item.click).appendTo(controls.$);
+                });
+            }
+        };
+        
+        supply.render();
+        controls.render();
+        
+        players = [
+            $.inherit(Player,{name:'player 1'}),
+            $.inherit(Player,{name:'player 2'})
+        ];
+        
+        // mainloop
+        players[cur_player].do_turn();         
+    });
+</script>
+<style>
+    body {
+        font-family: courier
+    }
+    .card {
+        position: relative;
+        float:left;
+        padding:3px;
+        margin-bottom:10px;
+        margin:1px;
+        width:100px;
+        height:150px;
+        border: 2px solid #888;
+    }
+    .card .rules {
+        position:absolute;
+        font-size:80%;
+        top: 50px;
+    }
+    .card .other {
+        bottom: 0px;
+        right: 0px;
+        font-size:110%;
+        position: absolute;
+        font-weight:bold;
+    }
+    .card .cost {
+        bottom: 0px;
+        left: 0px;
+        font-size:110%;
+        position: absolute;
+        font-weight:bold;
+    }
+    .used{ margin-top:10px ; margin-bottom:0px;}
+    .treasure { background-color:gold }
+    .victory {background-color: #cfc}
+    .action {background-color: #dddddd}
+</style>
+<div id='supply'></div><br style='clear:both'/>
+<div id='msg'></div>
+<div id='stats'>draw:5 discard:0 cash:0 buys:0 actions:0</div>
+<div id='controls'></div>
+<div id='hand'></div>
+</body>
+</html>
