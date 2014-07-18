@@ -190,8 +190,11 @@ Dominion Game
             this.deck = [];
             this.hand = [];
             this.discard = [];
+			this.cash = 0;
+			this.buys = 1;
+			this.actions = 1;
             for (var i = 0; i < 3; i++)
-                this.deck.push(Torturer);
+                this.deck.push(Estate);
             for (var i = 0; i < 7; i++)
                 this.deck.push(Copper);
             this.deck = shuffle(this.deck);
@@ -471,8 +474,9 @@ Dominion Game
     }
     .used{ margin-top:10px ; margin-bottom:0px;}
     .treasure { background-color:gold }
-    .victory {background-color: #cfc}
-    .action {background-color: #dddddd}
+    .victory { background-color: #cfc }
+	.curse { background-color:#faf }
+    .action { background-color: #dddddd }
     #DominionWindow
     {
         display: none;
@@ -498,6 +502,12 @@ Dominion Game
         background-color: white;
         opacity: 0.5;
     }
+	#msg
+	{
+		border: 3px solid black;
+		font-weight:bolder;
+		text-align:center;
+	}
 
 </style>
 <div id='supply'></div><br style='clear:both'/>
